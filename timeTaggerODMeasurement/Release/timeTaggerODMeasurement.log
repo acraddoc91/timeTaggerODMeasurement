@@ -1,7 +1,8 @@
-﻿  timeTaggerODMeasurement.cpp
+﻿  stdafx.cpp
+  timeTaggerODMeasurement.cpp
   Generating code
-  1 of 158 functions ( 0.6%) were compiled, the rest were copied from previous compilation.
+  155 of 158 functions (98.1%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    4 functions had inline decision re-evaluated but remain unchanged
+    0 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
-  timeTaggerODMeasurement.vcxproj -> C:\Users\Sandy\Documents\Visual Studio 2015\Projects\TimeTaggerSoftware\Release\timeTaggerODMeasurement.exe
+  timeTaggerODMeasurement.vcxproj -> C:\Users\Sandy\Documents\GitHub\timeTaggerOD\Release\timeTaggerODMeasurement.exe

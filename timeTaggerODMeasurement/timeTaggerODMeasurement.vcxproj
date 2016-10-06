@@ -79,8 +79,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>C:\Users\Sandy\ownCloud\Grad School\Project\APD &amp; Time Tagger Stuff\TTM8000-20160126\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\Sandy\ownCloud\Grad School\Project\APD &amp; Time Tagger Stuff\TTM8000-20160126\lib\win32;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\Sandy\Documents\GitHub\timeTaggerOD\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\Sandy\Documents\GitHub\timeTaggerOD\libraries;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
