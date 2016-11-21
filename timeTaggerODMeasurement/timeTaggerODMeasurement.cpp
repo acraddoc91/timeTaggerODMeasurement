@@ -8,12 +8,10 @@
 #include <string>
 #include <vector>
 #include "H5Cpp.h"
+#include <iostream>
 
 struct countData {
 	uint8_t windowNum;
-	uint16_t absorption;
-	uint16_t probe;
-	uint16_t background;
 	uint32_t highWord;
 	bool windowStatus;
 	std::vector<std::vector<uint32_t>> windowedTags;
@@ -109,7 +107,7 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 					//If slope is positive set the window open and record the low and high word of the start of the window
 					if (slope == 1) {
 						(*countData).windowStatus = true;
-						(*countData).windowStartTags[(*countData).windowNum*2] = (*countData).highWord;
+						(*countData).windowStartTags[(*countData).windowNum*2] = ((*countData).highWord << 1) | 1;
 						(*countData).windowStartTags[(*countData).windowNum*2+1] = payload;
 
 					}
@@ -154,7 +152,6 @@ void tagsToHDF5(countData *cntData, std::string filename, std::string groupName,
 		H5::DataSet dset(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
 		//Write our data to the dataset
 		dset.write(&(*cntData).windowedTags[i][0], H5::PredType::NATIVE_UINT32);
-		//Clear vector after writing it
 		(*cntData).windowedTags[i].clear();
 	}
 	//And write the start tags to file too
@@ -181,13 +178,9 @@ int main(int argc, char* argv[])
 	//All the classes we will need
 	TTMCntrl_c *taggerControl = new TTMCntrl_c;
 	TTMData_c *taggerDataConnection = new TTMData_c;
-	TTMEventCnt_c *singleEventCounter = new TTMEventCnt_c;
 	TTMMeasConfig_t *taggerConfig = new TTMMeasConfig_t;
 	bool dataAvailable = false;
 	countData countData;
-	countData.absorption = 0;
-	countData.probe = 0;
-	countData.background = 0;
 	countData.windowNum = 0;
 	countData.highWord = 0;
 	countData.windowStatus = false;
@@ -217,6 +210,7 @@ int main(int argc, char* argv[])
 			//If we have acquired absorption, probe and background print the resulting counts to file
 			if (countData.windowNum == numWindows) {
 				tagsToHDF5(&countData, blackhole, "/Tags", "TagWindow", "StartTag");
+				countData.windowNum = 0;
 			}
 			//Check to see if the stopFile has been written to
 			std::ifstream stopFile;
@@ -251,8 +245,7 @@ int main(int argc, char* argv[])
 	taggerDataConnection->Disconnect();
 	delete taggerConfig;
 	delete taggerDataConnection;
-	delete singleEventCounter;
-	delete taggerConfig;
+	delete taggerControl;
 
     return 0;
 }

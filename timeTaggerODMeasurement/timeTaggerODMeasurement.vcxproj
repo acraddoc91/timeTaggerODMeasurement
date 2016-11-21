@@ -79,8 +79,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>C:\Program Files %28x86%29\HDF_Group\HDF5\1.10.0\include;C:\Users\Sandy\Documents\GitHub\timeTaggerOD\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files %28x86%29\HDF_Group\HDF5\1.10.0\lib;C:\Users\Sandy\Documents\GitHub\timeTaggerOD\libraries;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Program Files %28x86%29\HDF_Group\HDF5\1.10.0\include;C:\Users\Ryd Berg Jnr\Documents\GitHub\timeTaggerODMeasurement\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files %28x86%29\HDF_Group\HDF5\1.10.0\lib;C:\Users\Ryd Berg Jnr\Documents\GitHub\timeTaggerODMeasurement\libraries;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
