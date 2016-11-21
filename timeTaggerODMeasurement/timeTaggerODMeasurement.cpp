@@ -121,7 +121,7 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 				//If we're using channel number 1 write the low words to the appropriate vector
 				else if(channelNum == 0){
 					if ((*countData).windowStatus){
-						(*countData).windowedTags[(*countData).windowNum].push_back((payload << 1)|0);
+						(*countData).windowedTags[(*countData).windowNum].push_back((payload << 1)| highLow);
 					}
 				}
 			}
