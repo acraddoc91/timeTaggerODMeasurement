@@ -108,7 +108,7 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 					if (slope == 1) {
 						(*countData).windowStatus = true;
 						(*countData).windowStartTags[(*countData).windowNum*2] = ((*countData).highWord << 1) | 1;
-						(*countData).windowStartTags[(*countData).windowNum*2+1] = payload;
+						(*countData).windowStartTags[(*countData).windowNum*2+1] = (payload << 1) | 0;
 
 					}
 					//If the slope is negative the window is closed so increment the window number and set the windowStatus to false
@@ -121,7 +121,7 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 				//If we're using channel number 1 write the low words to the appropriate vector
 				else if(channelNum == 0){
 					if ((*countData).windowStatus){
-						(*countData).windowedTags[(*countData).windowNum].push_back(payload);
+						(*countData).windowedTags[(*countData).windowNum].push_back((payload << 1)|0);
 					}
 				}
 			}
