@@ -200,7 +200,7 @@ int main(int argc, char* argv[])
 	//Get blackhole location from command line argument
 	char* blackhole = argv[2];
 	//Get the number of windows from the command line argument
-	int numWindows = atoi(argv[3]);
+	uint16_t numWindows = atoi(argv[3]);
 	//Get the channels to use
 	std::vector<uint16_t> channelVect = getChannels(argv[4]);
 	//All the classes we will need
