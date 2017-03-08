@@ -9,13 +9,15 @@
 #include <vector>
 #include "H5Cpp.h"
 #include <iostream>
+#include <sstream>
 
 struct countData {
-	uint8_t windowNum;
+	uint16_t windowNum;
 	uint32_t highWord;
 	bool windowStatus;
 	std::vector<std::vector<uint32_t>> windowedTags;
 	std::vector<uint32_t> windowStartTags;
+	std::vector<uint32_t> windowEndTags;
 };
 
 //Convert IPV4 in human readable form to decimal form
@@ -38,8 +40,22 @@ int IPV4ToDecimal(char* IPV4)
 	return decimalOut;
 }
 
+//Get time tagger channels to use from command line argument
+std::vector<uint16_t> getChannels(char* argIn) {
+	std::vector<uint16_t> channelVect;
+	std::stringstream ss(argIn);
+	int i;
+	while (ss >> i) {
+		channelVect.push_back(i);
+		if (ss.peek() == ',') {
+			ss.ignore();
+		}
+	}
+	return channelVect;
+}
+
 //Seperate function for setting config to clean things up
-TTMMeasConfig_t* configSetter() 
+TTMMeasConfig_t* configSetter(std::vector<uint16_t>* channelVect) 
 {
 	//Standard things, probably don't want to change these
 	TTMMeasConfig_t *configOut = new TTMMeasConfig_t;
@@ -69,8 +85,10 @@ TTMMeasConfig_t* configSetter()
 	//Set start and first channel rising edge on
 	configOut->EnableEdge[0][0] = true;
 	configOut->EnableEdge[1][0] = true;
-	configOut->EnableEdge[3][0] = true;
-	configOut->EnableEdge[3][1] = true;
+	configOut->EnableEdge[1][1] = true;
+	for (uint8_t i = 0; i < channelVect->size(); i++) {
+		configOut->EnableEdge[channelVect->at(i)][0] = true;
+	}
 	//Use the internal pulse as start trigger
 	configOut->UsePulseGenStart = true;
 	configOut->UsePulseGenStop1 = false;
@@ -101,8 +119,8 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 			if (payload != 0) {
 				//Check channel number
 				uint8_t channelNum = ((payload >> 28) & 7);
-				//If channel number is 3 then check whether we're using the rising or falling edge to dictate whether the window is open or closed
-				if (channelNum == 2) {
+				//If channel number is 1 then check whether we're using the rising or falling edge to dictate whether the window is open or closed
+				if (channelNum == 0) {
 					uint8_t slope = ((payload >> 27) & 1);
 					//If slope is positive set the window open and record the low and high word of the start of the window
 					if (slope == 1) {
@@ -111,17 +129,19 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 						(*countData).windowStartTags[(*countData).windowNum*2+1] = (payload << 1) | 0;
 
 					}
-					//If the slope is negative the window is closed so increment the window number and set the windowStatus to false
+					//If the slope is negative the window is closed so increment the window number and set the windowStatus to false & record high and low end words
 					else {
 						(*countData).windowStatus = false;
+						(*countData).windowEndTags[(*countData).windowNum * 2] = ((*countData).highWord << 1) | 1;
+						(*countData).windowEndTags[(*countData).windowNum * 2 + 1] = (payload << 1) | 0;
 						//Increment window number
 						(*countData).windowNum++;
 					}
 				}
-				//If we're using channel number 1 write the low words to the appropriate vector
-				else if(channelNum == 0){
+				//Otherwise write the tags to the vector
+				else{
 					if ((*countData).windowStatus){
-						(*countData).windowedTags[(*countData).windowNum].push_back((payload << 1)| highLow);
+						(*countData).windowedTags[(*countData).windowNum].push_back((payload << 1) | highLow);
 					}
 				}
 			}
@@ -133,7 +153,7 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 }
 
 //Write the collected tags in countData to file
-void tagsToHDF5(countData *cntData, std::string filename, std::string groupName, std::string datasetName, std::string startDataSetName) {
+void tagsToHDF5(countData *cntData, std::string filename, std::string groupName, std::string datasetName, std::string startDataSetName, std::string endDataSetName) {
 	//First let's create a file with the given filename
 	H5::H5File file(&filename[0u], H5F_ACC_TRUNC);
 	//Then create a group for our tags
@@ -141,12 +161,12 @@ void tagsToHDF5(countData *cntData, std::string filename, std::string groupName,
 	//Dimensions of each vector set in the loop below
 	hsize_t dims[1];
 	//Loop to write all the windowed tags to file
-	for (int i = 0; i < (*cntData).windowedTags.size(); i++) {
+	for (uint16_t i = 0; i < (*cntData).windowedTags.size(); i++) {
 		//Determine the total dataset name from the groupname, datasetName and loop iteration
 		std::string totDatasetName = groupName + '/' + datasetName + std::to_string(i);
 		//Set the length of the dataset to the same length as the current tag vector
 		dims[0] = (*cntData).windowedTags[i].size();
-		//Create a dataspace to hold our data (cards on the table I'm not sure what a dataspae is but this seems necessary)
+		//Create a dataspace to hold our data (cards on the table I'm not sure what a dataspace is but this seems necessary)
 		H5::DataSpace dspace(1, dims);
 		//Create dataset
 		H5::DataSet dset(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
@@ -160,6 +180,12 @@ void tagsToHDF5(countData *cntData, std::string filename, std::string groupName,
 	H5::DataSpace dspace(1, dims);
 	H5::DataSet dset(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
 	dset.write(&(*cntData).windowStartTags[0], H5::PredType::NATIVE_UINT32);
+	//And end tags while we're at it
+	totDatasetName = groupName + '/' + endDataSetName;
+	dims[0] = (*cntData).windowEndTags.size();
+	dspace = H5::DataSpace(1, dims);
+	dset = H5::DataSet(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
+	dset.write(&(*cntData).windowEndTags[0], H5::PredType::NATIVE_UINT32);
 	//Close all the HDF5 related crap to ensure memory gets freed
 	dset.close();
 	dspace.close();
@@ -175,6 +201,8 @@ int main(int argc, char* argv[])
 	char* blackhole = argv[2];
 	//Get the number of windows from the command line argument
 	int numWindows = atoi(argv[3]);
+	//Get the channels to use
+	std::vector<uint16_t> channelVect = getChannels(argv[4]);
 	//All the classes we will need
 	TTMCntrl_c *taggerControl = new TTMCntrl_c;
 	TTMData_c *taggerDataConnection = new TTMData_c;
@@ -192,7 +220,7 @@ int main(int argc, char* argv[])
 	taggerControl->Connect(NULL, TTM8ApplCookie, taggerIP, FlexIOCntrlPort, INADDR_ANY, 0, 1000);
 	//Buffer size is 8MB
 	taggerDataConnection->Connect(taggerIP, FlexIODataPort, INADDR_ANY, 0, 8 * 1024 * 1024, INVALID_SOCKET);
-	taggerConfig = configSetter();
+	taggerConfig = configSetter(&channelVect);
 	taggerControl->ConfigMeasurement(taggerConfig);
 	//Start measurement
 	taggerControl->StartMeasurement(true);
@@ -209,7 +237,7 @@ int main(int argc, char* argv[])
 			taggerDataConnection->DataAvailable(&dataAvailable, 250);
 			//If we have acquired absorption, probe and background print the resulting counts to file
 			if (countData.windowNum == numWindows) {
-				tagsToHDF5(&countData, blackhole, "/Tags", "TagWindow", "StartTag");
+				tagsToHDF5(&countData, blackhole, "/Tags", "TagWindow", "StartTag", "EndTag");
 				countData.windowNum = 0;
 			}
 			//Check to see if the stopFile has been written to
