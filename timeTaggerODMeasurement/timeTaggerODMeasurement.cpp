@@ -153,7 +153,7 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 }
 
 //Write the collected tags in countData to file
-void tagsToHDF5(countData *cntData, std::string filename, std::string groupName, std::string datasetName, std::string startDataSetName, std::string endDataSetName) {
+void tagsToHDF5(countData *cntData, std::string filename, std::string groupName, std::string datasetName, std::string startDataSetName, std::string endDataSetName, std::vector<uint16_t>* channelVect) {
 	//First let's create a file with the given filename
 	H5::H5File file(&filename[0u], H5F_ACC_TRUNC);
 	//Then create a group for our tags
@@ -186,6 +186,12 @@ void tagsToHDF5(countData *cntData, std::string filename, std::string groupName,
 	dspace = H5::DataSpace(1, dims);
 	dset = H5::DataSet(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
 	dset.write(&(*cntData).windowEndTags[0], H5::PredType::NATIVE_UINT32);
+	//And the channel list
+	totDatasetName = "/Inform/ChannelList";
+	dims[0] = channelVect->size();
+	dspace = H5::DataSpace(1, dims);
+	dset = H5::DataSet(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
+	dset.write(&(*channelVect)[0], H5::PredType::NATIVE_UINT32);
 	//Close all the HDF5 related crap to ensure memory gets freed
 	dset.close();
 	dspace.close();
@@ -237,7 +243,7 @@ int main(int argc, char* argv[])
 			taggerDataConnection->DataAvailable(&dataAvailable, 250);
 			//If we have acquired absorption, probe and background print the resulting counts to file
 			if (countData.windowNum == numWindows) {
-				tagsToHDF5(&countData, blackhole, "/Tags", "TagWindow", "StartTag", "EndTag");
+				tagsToHDF5(&countData, blackhole, "/Tags", "TagWindow", "StartTag", "EndTag", &channelVect);
 				countData.windowNum = 0;
 			}
 			//Check to see if the stopFile has been written to
