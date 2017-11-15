@@ -1,1 +1,17 @@
-﻿  timeTaggerODMeasurement.vcxproj -> C:\Users\Sandy\Documents\GitHub\timeTaggerOD\Release\timeTaggerODMeasurement.exe
+﻿  timeTaggerODMeasurement.cpp
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\inttypes.h(111): warning C4005: 'PRId32': macro redefinition
+  c:\users\sandy\documents\github\timetaggerod\include\SysTypes.h(93): note: see previous definition of 'PRId32'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\inttypes.h(168): warning C4005: 'PRIu32': macro redefinition
+  c:\users\sandy\documents\github\timetaggerod\include\SysTypes.h(94): note: see previous definition of 'PRIu32'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\inttypes.h(206): warning C4005: 'PRIX32': macro redefinition
+  c:\users\sandy\documents\github\timetaggerod\include\SysTypes.h(95): note: see previous definition of 'PRIX32'
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\inttypes.h(220): warning C4005: 'PRIXPTR': macro redefinition
+  c:\users\sandy\documents\github\timetaggerod\include\SysTypes.h(100): note: see previous definition of 'PRIXPTR'
+c:\program files (x86)\hdf_group\hdf5\1.10.0\include\H5Exception.h(93): warning C4251: 'H5::Exception::detail_message': class 'std::basic_string<char,std::char_traits<char>,std::allocator<char>>' needs to have dll-interface to be used by clients of class 'H5::Exception'
+c:\program files (x86)\hdf_group\hdf5\1.10.0\include\H5Exception.h(94): warning C4251: 'H5::Exception::func_name': class 'std::basic_string<char,std::char_traits<char>,std::allocator<char>>' needs to have dll-interface to be used by clients of class 'H5::Exception'
+  Generating code
+  9 of 442 functions ( 2.0%) were compiled, the rest were copied from previous compilation.
+    3 functions were new in current compilation
+    14 functions had inline decision re-evaluated but remain unchanged
+  Finished generating code
+  timeTaggerODMeasurement.vcxproj -> C:\Users\Sandy\Documents\GitHub\timeTaggerOD\Release\timeTaggerODMeasurement.exe

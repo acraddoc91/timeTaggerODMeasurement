@@ -55,7 +55,7 @@ std::vector<uint16_t> getChannels(char* argIn) {
 }
 
 //Seperate function for setting config to clean things up
-TTMMeasConfig_t* configSetter(std::vector<uint16_t>* channelVect, int trigger_level) 
+TTMMeasConfig_t* configSetter(std::vector<uint16_t>* channelVect) 
 {
 	//Standard things, probably don't want to change these
 	TTMMeasConfig_t *configOut = new TTMMeasConfig_t;
@@ -76,13 +76,8 @@ TTMMeasConfig_t* configSetter(std::vector<uint16_t>* channelVect, int trigger_le
 		//By default turn off edges
 		configOut->EnableEdge[i][1] = false;
 		configOut->EnableEdge[i][0] = false;
-	}
-	//LVTTL threshold
-	for (int i = 0; i < 2; i++) {
+		//LVTTL threshold
 		configOut->SignalLevel[i] = 1400;
-	}
-	for (int i = 2; i < 9; i++) {
-		configOut->SignalLevel[i] = trigger_level;
 	}
 	//Things that can be changed based on operating mode
 	//Set data mode
@@ -214,8 +209,6 @@ int main(int argc, char* argv[])
 	uint16_t numWindows = atoi(argv[3]);
 	//Get the channels to use
 	std::vector<uint16_t> channelVect = getChannels(argv[4]);
-	//Get trigger level
-	int trigger_level = atoi(argv[5]);
 	//All the classes we will need
 	TTMCntrl_c *taggerControl = new TTMCntrl_c;
 	TTMData_c *taggerDataConnection = new TTMData_c;
@@ -233,7 +226,7 @@ int main(int argc, char* argv[])
 	taggerControl->Connect(NULL, TTM8ApplCookie, taggerIP, FlexIOCntrlPort, INADDR_ANY, 0, 1000);
 	//Buffer size is 8MB
 	taggerDataConnection->Connect(taggerIP, FlexIODataPort, INADDR_ANY, 0, 8 * 1024 * 1024, INVALID_SOCKET);
-	taggerConfig = configSetter(&channelVect,trigger_level);
+	taggerConfig = configSetter(&channelVect);
 	taggerControl->ConfigMeasurement(taggerConfig);
 	//Start measurement
 	taggerControl->StartMeasurement(true);
