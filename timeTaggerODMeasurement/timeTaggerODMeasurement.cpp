@@ -16,6 +16,7 @@ struct countData {
 	uint32_t highWord;
 	bool windowStatus;
 	std::vector<std::vector<uint32_t>> windowedTags;
+	std::vector<std::vector<uint32_t>> clockTags;
 	std::vector<uint32_t> windowStartTags;
 	std::vector<uint32_t> windowEndTags;
 };
@@ -55,7 +56,7 @@ std::vector<uint16_t> getChannels(char* argIn) {
 }
 
 //Seperate function for setting config to clean things up
-TTMMeasConfig_t* configSetter(std::vector<uint16_t>* channelVect) 
+TTMMeasConfig_t* configSetter(std::vector<uint16_t>* channelVect, uint16_t* clockline)
 {
 	//Standard things, probably don't want to change these
 	TTMMeasConfig_t *configOut = new TTMMeasConfig_t;
@@ -89,6 +90,8 @@ TTMMeasConfig_t* configSetter(std::vector<uint16_t>* channelVect)
 	for (uint8_t i = 0; i < channelVect->size(); i++) {
 		configOut->EnableEdge[channelVect->at(i)][0] = true;
 	}
+	configOut->EnableEdge[*clockline][0] = true;
+	configOut->EnableEdge[*clockline][1] = true;
 	//Use the internal pulse as start trigger
 	configOut->UsePulseGenStart = true;
 	configOut->UsePulseGenStop1 = false;
@@ -96,10 +99,10 @@ TTMMeasConfig_t* configSetter(std::vector<uint16_t>* channelVect)
 	return configOut;
 }
 
-int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
+int processTags(TTMDataPacket_t *tagBuffer, countData *countData, uint16_t* clockline)
 {
 	//Determine the number of tags to process
-	int numElements = sizeof(tagBuffer->Data.TimetagI64Pack)/sizeof(tagBuffer->Data.TimetagI64Pack[0]);
+	int numElements = sizeof(tagBuffer->Data.TimetagI64Pack) / sizeof(tagBuffer->Data.TimetagI64Pack[0]);
 	//Loop over tags
 	for (int i = 0; i < numElements; i++) {
 		//Extract the payload and highLow data
@@ -111,10 +114,11 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 			//Write the highWord to the table if the window is open
 			if ((*countData).windowStatus) {
 				(*countData).windowedTags[(*countData).windowNum].push_back((payload << 1) | highLow);
+				(*countData).clockTags[(*countData).windowNum].push_back((payload << 1) | highLow);
 			}
 		}
 		//If word is low word
-		else if(highLow==0) {
+		else if (highLow == 0) {
 			//See if payload is null
 			if (payload != 0) {
 				//Check channel number
@@ -125,22 +129,31 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 					//If slope is positive set the window open and record the low and high word of the start of the window
 					if (slope == 1) {
 						(*countData).windowStatus = true;
-						(*countData).windowStartTags[(*countData).windowNum*2] = ((*countData).highWord << 1) | 1;
-						(*countData).windowStartTags[(*countData).windowNum*2+1] = (payload << 1) | 0;
-
+						(*countData).windowStartTags[(*countData).windowNum * 2] = ((*countData).highWord << 1) | 1;
+						(*countData).windowStartTags[(*countData).windowNum * 2 + 1] = (payload << 1) | 0;
+						std::cout << (*countData).highWord << std::endl;
+						std::cout << payload << std::endl;
 					}
 					//If the slope is negative the window is closed so increment the window number and set the windowStatus to false & record high and low end words
 					else {
 						(*countData).windowStatus = false;
 						(*countData).windowEndTags[(*countData).windowNum * 2] = ((*countData).highWord << 1) | 1;
 						(*countData).windowEndTags[(*countData).windowNum * 2 + 1] = (payload << 1) | 0;
+						std::cout << (*countData).highWord << std::endl;
+						std::cout << payload << std::endl;
 						//Increment window number
 						(*countData).windowNum++;
 					}
 				}
+				//If the tags belongs to the clockline
+				else if (channelNum == *clockline - 1) {
+					if ((*countData).windowStatus) {
+						(*countData).clockTags[(*countData).windowNum].push_back((payload << 1) | highLow);
+					}
+				}
 				//Otherwise write the tags to the vector
-				else{
-					if ((*countData).windowStatus){
+				else {
+					if ((*countData).windowStatus) {
 						(*countData).windowedTags[(*countData).windowNum].push_back((payload << 1) | highLow);
 					}
 				}
@@ -154,50 +167,73 @@ int processTags(TTMDataPacket_t *tagBuffer, countData *countData)
 
 //Write the collected tags in countData to file
 void tagsToHDF5(countData *cntData, std::string filename, std::string groupName, std::string datasetName, std::string startDataSetName, std::string endDataSetName, std::vector<uint16_t>* channelVect) {
-	//First let's create a file with the given filename
-	H5::H5File file(&filename[0u], H5F_ACC_TRUNC);
-	//Then create a group for our tags
-	H5::Group group(file.createGroup(&groupName[0u]));
-	//Dimensions of each vector set in the loop below
-	hsize_t dims[1];
-	//Loop to write all the windowed tags to file
-	for (uint16_t i = 0; i < (*cntData).windowedTags.size(); i++) {
-		//Determine the total dataset name from the groupname, datasetName and loop iteration
-		std::string totDatasetName = groupName + '/' + datasetName + std::to_string(i);
-		//Set the length of the dataset to the same length as the current tag vector
-		dims[0] = (*cntData).windowedTags[i].size();
-		//Create a dataspace to hold our data (cards on the table I'm not sure what a dataspace is but this seems necessary)
+	std::cout << "writing..." << std::endl;
+		//First let's create a file with the given filename
+		H5::H5File file(&filename[0u], H5F_ACC_TRUNC);
+		//Then create a group for our tags
+		H5::Group group(file.createGroup(&groupName[0u]));
+		//Dimensions of each vector set in the loop below
+		hsize_t dims[1];
+		//Loop to write all the windowed tags to file
+		for (uint16_t i = 0; i < (*cntData).windowedTags.size(); i++) {
+			//Determine the total dataset name from the groupname, datasetName and loop iteration
+			std::string totDatasetName = groupName + '/' + datasetName + std::to_string(i);
+			//Set the length of the dataset to the same length as the current tag vector
+			dims[0] = (*cntData).windowedTags[i].size();
+			//Create a dataspace to hold our data (cards on the table I'm not sure what a dataspace is but this seems necessary)
+			H5::DataSpace dspace(1, dims);
+			//Create dataset
+			H5::DataSet dset(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
+			//Write our data to the dataset
+			dset.write(&(*cntData).windowedTags[i][0], H5::PredType::NATIVE_UINT32);
+			(*cntData).windowedTags[i].clear();
+		}
+		std::cout << "channel tags written...";
+		//Loop to write all the clock tags to file
+		for (uint16_t i = 0; i < (*cntData).clockTags.size(); i++) {
+			//Determine the total dataset name from the groupname, datasetName and loop iteration
+			std::string totDatasetName = groupName + '/' + "ClockTags" + std::to_string(i);
+			//Set the length of the dataset to the same length as the current tag vector
+			dims[0] = (*cntData).clockTags[i].size();
+			//Create a dataspace to hold our data (cards on the table I'm not sure what a dataspace is but this seems necessary)
+			H5::DataSpace dspace(1, dims);
+			//Create dataset
+			H5::DataSet dset(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
+			//Write our data to the dataset
+			dset.write(&(*cntData).clockTags[i][0], H5::PredType::NATIVE_UINT32);
+			(*cntData).clockTags[i].clear();
+		}
+		std::cout << "clock tags written...";
+		//And write the start tags to file too
+		std::string totDatasetName = groupName + '/' + startDataSetName;
+		dims[0] = (*cntData).windowStartTags.size();
 		H5::DataSpace dspace(1, dims);
-		//Create dataset
 		H5::DataSet dset(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
-		//Write our data to the dataset
-		dset.write(&(*cntData).windowedTags[i][0], H5::PredType::NATIVE_UINT32);
-		(*cntData).windowedTags[i].clear();
+		dset.write(&(*cntData).windowStartTags[0], H5::PredType::NATIVE_UINT32);
+		std::cout << "start tags written...";
+		//And end tags while we're at it
+		totDatasetName = groupName + '/' + endDataSetName;
+		dims[0] = (*cntData).windowEndTags.size();
+		dspace = H5::DataSpace(1, dims);
+		dset = H5::DataSet(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
+		dset.write(&(*cntData).windowEndTags[0], H5::PredType::NATIVE_UINT32);
+		std::cout << "end tags written...";
+		//And the channel list
+		groupName = "/Inform";
+		H5::Group ChannelListgroup(file.createGroup(&groupName[0u]));
+		totDatasetName = groupName + '/' + "ChannelList";
+		dims[0] = channelVect->size();
+		dspace = H5::DataSpace(1, dims);
+		dset = H5::DataSet(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT16, dspace));
+		std::cout << "channel list written...";
+		dset.write(&(*channelVect)[0], H5::PredType::NATIVE_UINT16);
+		//Close all the HDF5 related crap to ensure memory gets freed
+		dset.close();
+		dspace.close();
+		group.close();
+		file.close();
+		ChannelListgroup.close();
 	}
-	//And write the start tags to file too
-	std::string totDatasetName = groupName + '/' + startDataSetName;
-	dims[0] = (*cntData).windowStartTags.size();
-	H5::DataSpace dspace(1, dims);
-	H5::DataSet dset(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
-	dset.write(&(*cntData).windowStartTags[0], H5::PredType::NATIVE_UINT32);
-	//And end tags while we're at it
-	totDatasetName = groupName + '/' + endDataSetName;
-	dims[0] = (*cntData).windowEndTags.size();
-	dspace = H5::DataSpace(1, dims);
-	dset = H5::DataSet(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
-	dset.write(&(*cntData).windowEndTags[0], H5::PredType::NATIVE_UINT32);
-	//And the channel list
-	totDatasetName = "/Inform/ChannelList";
-	dims[0] = channelVect->size();
-	dspace = H5::DataSpace(1, dims);
-	dset = H5::DataSet(file.createDataSet(&totDatasetName[0u], H5::PredType::NATIVE_UINT32, dspace));
-	dset.write(&(*channelVect)[0], H5::PredType::NATIVE_UINT32);
-	//Close all the HDF5 related crap to ensure memory gets freed
-	dset.close();
-	dspace.close();
-	group.close();
-	file.close();
-}
 
 int main(int argc, char* argv[])
 {
@@ -209,6 +245,7 @@ int main(int argc, char* argv[])
 	uint16_t numWindows = atoi(argv[3]);
 	//Get the channels to use
 	std::vector<uint16_t> channelVect = getChannels(argv[4]);
+	uint16_t clockLine = atoi(argv[5]);
 	//All the classes we will need
 	TTMCntrl_c *taggerControl = new TTMCntrl_c;
 	TTMData_c *taggerDataConnection = new TTMData_c;
@@ -220,13 +257,15 @@ int main(int argc, char* argv[])
 	countData.windowStatus = false;
 	bool collectData = true;
 	countData.windowedTags.resize(numWindows);
-	countData.windowStartTags.resize(numWindows*2);
+	countData.windowStartTags.resize(numWindows * 2);
+	countData.windowEndTags.resize(numWindows * 2);
+	countData.clockTags.resize(numWindows);
 
 	//Connect and configure the tagger
 	taggerControl->Connect(NULL, TTM8ApplCookie, taggerIP, FlexIOCntrlPort, INADDR_ANY, 0, 1000);
 	//Buffer size is 8MB
 	taggerDataConnection->Connect(taggerIP, FlexIODataPort, INADDR_ANY, 0, 8 * 1024 * 1024, INVALID_SOCKET);
-	taggerConfig = configSetter(&channelVect);
+	taggerConfig = configSetter(&channelVect, &clockLine);
 	taggerControl->ConfigMeasurement(taggerConfig);
 	//Start measurement
 	taggerControl->StartMeasurement(true);
@@ -234,16 +273,16 @@ int main(int argc, char* argv[])
 	//Check if data is available
 	taggerDataConnection->DataAvailable(&dataAvailable, 1000);
 	//Process data until escape file is updated
-	while (collectData){
+	while (collectData) {
 		//Loop while data is available
 		while (dataAvailable) {
 			TTMDataPacket_t *tagBuffer = new TTMDataPacket_t;
 			taggerDataConnection->FetchData(tagBuffer, 100);
-			processTags(tagBuffer, &countData);
+			processTags(tagBuffer, &countData, &clockLine);
 			taggerDataConnection->DataAvailable(&dataAvailable, 250);
 			//If we have acquired absorption, probe and background print the resulting counts to file
 			if (countData.windowNum == numWindows) {
-				tagsToHDF5(&countData, blackhole, "/Tags", "TagWindow", "StartTag", "EndTag", &channelVect);
+				tagsToHDF5(&countData, blackhole, "/Tags", "TagWindow", "StartTag", "EndTag");
 				countData.windowNum = 0;
 			}
 			//Check to see if the stopFile has been written to
@@ -281,6 +320,6 @@ int main(int argc, char* argv[])
 	delete taggerDataConnection;
 	delete taggerControl;
 
-    return 0;
+	return 0;
 }
 
